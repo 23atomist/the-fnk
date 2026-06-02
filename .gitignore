@@ -2,3 +2,9 @@ node_modules/
 dist/
 *.ablx
 .env
+.DS_Store
+
+# Vendored Ableton Extensions SDK: keep the tarballs + examples (needed to build),
+# but ignore the generated HTML reference site (regenerable, ~3.6M).
+extensions/docs/
+extensions/api/
