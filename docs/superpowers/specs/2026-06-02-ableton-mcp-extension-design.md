@@ -25,6 +25,29 @@ Built in safe increments (M0–M5 below).
 
 ---
 
+## M0 — VERIFIED LIVE (2026-06-02)
+
+The M0 milestone (real extension, not a spike) was implemented and verified end-to-end
+in Ableton Live 12 Beta:
+
+- ✅ Extension loads in the Extension Host and `activate()` starts the MCP server on
+  `http://127.0.0.1:9787/mcp`.
+- ✅ `tools/list` returns `get_song_overview`; `tools/call` returned the real open set
+  (tempo 97, 12 tracks, returns A-Reverb/B-Delay, 9 scenes, scale Minor).
+- ✅ Unauthorized request → HTTP 401 (bearer-token gate enforced).
+- ✅ `claude mcp add --transport http ableton …` → **Claude Code shows `✓ Connected`**.
+- ✅ Host did not crash across many requests (error-isolation constraint held).
+
+**New host constraints discovered during M0 (beyond the spike's):** the Extension Host
+strips not only `URL` but also `global` and the web-fetch classes
+(`Request`/`Response`/`Headers`/`fetch`) from the global scope. A bundled MCP-SDK fetch
+wrapper references `global.Request` at *module-evaluation time*, so a runtime shim is too
+late. Fix: an **esbuild banner** installs `global`, `URL`/`crypto`/streams (from `node:`
+modules) and the fetch classes (from **undici**, required at runtime) before any bundled
+module body runs. This is now the canonical packaging requirement for all later milestones.
+
+---
+
 ## 2. Feasibility — PROVEN by spike (2026-06-02)
 
 A throwaway spike (`/tmp/mcp-spike`) loaded into **Ableton Live 12 Beta**
