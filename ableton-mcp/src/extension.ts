@@ -24,6 +24,12 @@ export function activate(activation: ableton.ActivationContext): void {
   const storageDir = context.environment.storageDirectory;
   const token = loadOrCreateToken(storageDir);
 
+  const candidate = context as { application?: { song?: unknown } };
+  if (!candidate.application || !candidate.application.song) {
+    log.error("SDK ExtensionContext is missing .application.song — incompatible SDK version?");
+    return;
+  }
+
   // The SDK ExtensionContext structurally satisfies LiveContext for the fields we use.
   const liveContext = context as unknown as LiveContext;
 

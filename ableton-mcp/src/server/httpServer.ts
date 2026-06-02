@@ -61,8 +61,8 @@ export function startHttpServer(opts: StartHttpOptions): Promise<StartedHttp> {
         // Stateless: a fresh transport + server per request.
         const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
         const mcp = buildMcpServer(opts.context);
+        // mcp.close() also closes its connected transport; closing here once is enough.
         res.on("close", () => {
-          void transport.close();
           void mcp.close();
         });
         await mcp.connect(transport);
@@ -74,16 +74,22 @@ export function startHttpServer(opts: StartHttpOptions): Promise<StartedHttp> {
     })();
   });
 
-  server.on("error", (err: NodeJS.ErrnoException) => {
-    if (err.code === "EADDRINUSE") {
-      log.error(`port ${opts.port} already in use — is another Live/extension instance running?`);
-    } else {
-      log.error(`server error: ${err.message}`);
-    }
-  });
-
-  return new Promise<StartedHttp>((resolve) => {
+  return new Promise<StartedHttp>((resolve, reject) => {
+    // Before listening, a listen error (e.g. EADDRINUSE) must reject so callers learn of it.
+    server.once("error", (err: NodeJS.ErrnoException) => {
+      if (err.code === "EADDRINUSE") {
+        log.error(`port ${opts.port} already in use — is another Live/extension instance running?`);
+      } else {
+        log.error(`server error before listen: ${err.message}`);
+      }
+      reject(err);
+    });
     server.listen(opts.port, opts.host, () => {
+      // Now listening: swap to a non-rejecting handler for post-listen runtime errors.
+      server.removeAllListeners("error");
+      server.on("error", (err: NodeJS.ErrnoException) => {
+        log.error(`server runtime error: ${err.message}`);
+      });
       const addr = server.address();
       const port = typeof addr === "object" && addr ? addr.port : opts.port;
       resolve({ server, port });

@@ -5,9 +5,11 @@ import { tokenFilePath } from "../core/config.js";
 /** Load the persisted token, or generate + persist a new one (0600). */
 export function loadOrCreateToken(storageDirectory: string | undefined): string {
   const file = tokenFilePath(storageDirectory);
+  const HEX64 = /^[0-9a-f]{64}$/;
   try {
     const existing = fs.readFileSync(file, "utf8").trim();
-    if (existing.length > 0) return existing;
+    if (HEX64.test(existing)) return existing;
+    // else: corrupt/weak token — fall through and regenerate
   } catch {
     // not created yet
   }

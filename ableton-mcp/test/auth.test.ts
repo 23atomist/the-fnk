@@ -24,4 +24,9 @@ describe("auth", () => {
     expect(verifyAuthHeader(undefined, token)).toBe(false);
     expect(verifyAuthHeader(token, token)).toBe(false); // missing "Bearer " prefix
   });
+
+  it("falls back to the OS temp dir when storageDirectory is undefined", () => {
+    const token = loadOrCreateToken(undefined);
+    expect(token).toMatch(/^[0-9a-f]{64}$/);
+  });
 });

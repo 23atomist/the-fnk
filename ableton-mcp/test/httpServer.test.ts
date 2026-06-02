@@ -57,4 +57,14 @@ describe("httpServer", () => {
     });
     expect(res.status).toBe(401);
   });
+
+  it("returns 404 for a non-/mcp path", async () => {
+    const started = await startHttpServer({ context: fakeContext(), token: TOKEN, host: "127.0.0.1", port: 0 });
+    server = started.server;
+    const res = await fetch(`http://127.0.0.1:${started.port}/healthz`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
+    expect(res.status).toBe(404);
+  });
 });
