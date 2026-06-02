@@ -15,7 +15,7 @@ describe("withSafeHandler", () => {
     const safe = withSafeHandler("boom_tool", async () => {
       throw new Error("kaboom");
     });
-    const res = await safe(undefined);
+    const res = await safe();
     expect(res.isError).toBe(true);
     expect(res.content[0].text).toContain("kaboom");
   });
