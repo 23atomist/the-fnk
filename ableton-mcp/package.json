@@ -1,0 +1,25 @@
+{
+  "name": "ableton-mcp",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "dist/extension.js",
+  "scripts": {
+    "build": "tsc --noEmit && tsx build.ts",
+    "start": "tsx build.ts && extensions-cli run --live \"/Volumes/ExtData/Applications/Ableton Live 12 Beta.app\"",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@ableton-extensions/cli": "file:../extensions/ableton-extensions-cli-1.0.0-beta.0.tgz",
+    "@types/node": "^25.2.3",
+    "esbuild": "0.28.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.0"
+  },
+  "dependencies": {
+    "@ableton-extensions/sdk": "file:../extensions/ableton-extensions-sdk-1.0.0-beta.0.tgz",
+    "@modelcontextprotocol/sdk": "^1.13.0",
+    "zod": "^3.23.8"
+  }
+}
