@@ -3,6 +3,7 @@ import { log } from "./logger.js";
 export interface ToolResult {
   content: Array<{ type: "text"; text: string }>;
   isError?: boolean;
+  [key: string]: unknown;
 }
 
 /**
