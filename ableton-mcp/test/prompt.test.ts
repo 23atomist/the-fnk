@@ -15,4 +15,15 @@ describe("composePrompt", () => {
     expect(p.toLowerCase()).toContain("ambiguous");
     expect(p.length).toBeGreaterThan(40);
   });
+  it("teaches relative placement underneath the selected cell", () => {
+    const p = composePrompt({ kind: "clipSlot", hasClip: false }, "drums underneath");
+    expect(p).toContain("sceneOffset");
+    expect(p.toLowerCase()).toContain("underneath");
+  });
+  it("includes the drum velocity and melody guidance", () => {
+    const p = composePrompt({ kind: "clipSlot", hasClip: false }, "make a beat");
+    expect(p.toLowerCase()).toContain("velocity");
+    expect(p.toLowerCase()).toContain("ghost note");
+    expect(p).toContain("get_song_overview");
+  });
 });

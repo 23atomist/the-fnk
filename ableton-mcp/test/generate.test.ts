@@ -10,7 +10,15 @@ describe("create_midi_clips input schema", () => {
     });
     expect(parsed.clips[0].sceneIndex).toBe(0);
   });
-  it("rejects a clip missing sceneIndex", () => {
-    expect(() => schema.parse({ clips: [{ lengthBeats: 4, notes: [] }] })).toThrow();
+  it("accepts a clip with no sceneIndex (defaults to the selected scene)", () => {
+    const parsed = schema.parse({ clips: [{ lengthBeats: 4, notes: [] }] });
+    expect(parsed.clips[0].sceneIndex).toBeUndefined();
+  });
+  it("accepts relative placement via sceneOffset", () => {
+    const parsed = schema.parse({ clips: [{ sceneOffset: 1, lengthBeats: 4, notes: [] }] });
+    expect(parsed.clips[0].sceneOffset).toBe(1);
+  });
+  it("rejects a clip missing lengthBeats", () => {
+    expect(() => schema.parse({ clips: [{ sceneIndex: 0, notes: [] }] })).toThrow();
   });
 });

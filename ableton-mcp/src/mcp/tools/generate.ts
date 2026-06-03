@@ -3,6 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as ableton from "@ableton-extensions/sdk";
 import { getActiveSelection } from "../../selection/activeSelection.js";
 import { validateNotes } from "../../agent/notes.js";
+import { resolvePlacement } from "./resolvePlacement.js";
 import { withSafeHandler } from "../../core/errors.js";
 
 const NoteShape = z.object({
@@ -14,7 +15,9 @@ const NoteShape = z.object({
 
 const ClipShape = z.object({
   trackIndex: z.number().optional(),
-  sceneIndex: z.number(),
+  sceneIndex: z.number().optional(),
+  trackOffset: z.number().optional(),
+  sceneOffset: z.number().optional(),
   lengthBeats: z.number(),
   name: z.string().optional(),
   notes: z.array(NoteShape),
@@ -36,10 +39,13 @@ export function registerGenerateTool(
       title: "Create MIDI clips",
       description:
         "Batch-create MIDI clips with notes in Session clip slots, applied as a single undo step. " +
-        "Each clip targets song.tracks[trackIndex].clipSlots[sceneIndex]; trackIndex defaults to the " +
-        "selected track. Times are in beats (0 = clip start). Only empty slots on MIDI tracks are filled; " +
-        "occupied/non-MIDI/out-of-range targets are skipped and reported. Decide column (same track, " +
-        "consecutive scenes) vs row (same scene, consecutive tracks) from the producer's wording.",
+        "Each clip targets song.tracks[trackIndex].clipSlots[sceneIndex]. Placement can be absolute " +
+        "(trackIndex/sceneIndex) or relative to the selected cell via trackOffset/sceneOffset — e.g. " +
+        "sceneOffset:1 is the row directly underneath the selection, trackOffset:1 the next track. " +
+        "Omitted axes default to the selected track/scene. Times are in beats (0 = clip start). Only " +
+        "empty slots on MIDI tracks are filled; occupied/non-MIDI/out-of-range targets are skipped and " +
+        "reported. Decide column (same track, consecutive scenes) vs row (same scene, consecutive tracks) " +
+        "from the producer's wording.",
       inputSchema: ClipsInputShape,
     },
     withSafeHandler("create_midi_clips", async (args: ClipsArgs) => {
@@ -50,18 +56,19 @@ export function registerGenerateTool(
       const seen = new Set<string>();
 
       for (const c of args.clips) {
-        const trackIndex = c.trackIndex ?? sel?.trackIndex ?? null;
-        if (trackIndex == null) { skipped.push({ trackIndex: null, sceneIndex: c.sceneIndex, reason: "no track (no selection)" }); continue; }
-        const key = `${trackIndex}:${c.sceneIndex}`;
-        if (seen.has(key)) { skipped.push({ trackIndex, sceneIndex: c.sceneIndex, reason: "duplicate in batch" }); continue; }
+        const resolved = resolvePlacement(c, sel);
+        if (!resolved.ok) { skipped.push({ trackIndex: resolved.trackIndex, sceneIndex: resolved.sceneIndex ?? -1, reason: resolved.reason }); continue; }
+        const { trackIndex, sceneIndex } = resolved;
+        const key = `${trackIndex}:${sceneIndex}`;
+        if (seen.has(key)) { skipped.push({ trackIndex, sceneIndex, reason: "duplicate in batch" }); continue; }
         seen.add(key);
         const track = song.tracks[trackIndex];
-        if (!track) { skipped.push({ trackIndex, sceneIndex: c.sceneIndex, reason: `track ${trackIndex} out of range` }); continue; }
-        if (!(track instanceof ableton.MidiTrack)) { skipped.push({ trackIndex, sceneIndex: c.sceneIndex, reason: "not a MIDI track" }); continue; }
-        const slot = track.clipSlots[c.sceneIndex];
-        if (!slot) { skipped.push({ trackIndex, sceneIndex: c.sceneIndex, reason: `scene ${c.sceneIndex} out of range` }); continue; }
-        if (slot.clip != null) { skipped.push({ trackIndex, sceneIndex: c.sceneIndex, reason: "slot occupied" }); continue; }
-        plans.push({ slot, lengthBeats: c.lengthBeats, notes: validateNotes(c.notes) as ableton.NoteDescription[], name: c.name, trackIndex, sceneIndex: c.sceneIndex });
+        if (!track) { skipped.push({ trackIndex, sceneIndex, reason: `track ${trackIndex} out of range` }); continue; }
+        if (!(track instanceof ableton.MidiTrack)) { skipped.push({ trackIndex, sceneIndex, reason: "not a MIDI track" }); continue; }
+        const slot = track.clipSlots[sceneIndex];
+        if (!slot) { skipped.push({ trackIndex, sceneIndex, reason: `scene ${sceneIndex} out of range` }); continue; }
+        if (slot.clip != null) { skipped.push({ trackIndex, sceneIndex, reason: "slot occupied" }); continue; }
+        plans.push({ slot, lengthBeats: c.lengthBeats, notes: validateNotes(c.notes) as ableton.NoteDescription[], name: c.name, trackIndex, sceneIndex });
       }
 
       if (plans.length > 0) {
