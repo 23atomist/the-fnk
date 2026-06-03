@@ -9,6 +9,7 @@ import { loadOrCreateToken } from "./server/auth.js";
 import { HOST, PORT, MCP_PATH } from "./core/config.js";
 import { log } from "./core/logger.js";
 import type { LiveContext } from "./sdk/types.js";
+import { registerAskClaude } from "./selection/askClaude.js";
 
 export function activate(activation: ableton.ActivationContext): void {
   installProcessGuards();
@@ -39,6 +40,10 @@ export function activate(activation: ableton.ActivationContext): void {
       log.info(
         `Connect Claude with:\n  claude mcp add --transport http ableton ` +
           `http://${HOST}:${port}${MCP_PATH} --header "Authorization: Bearer ${token}"`,
+      );
+      // Register the selection-driven "Ask Claude…" action now that the server (and token) are live.
+      void registerAskClaude({ context, token }).catch((e) =>
+        log.error(`failed to register Ask Claude: ${String(e)}`),
       );
     })
     .catch((err) => log.error(`failed to start MCP server: ${String(err)}`));
