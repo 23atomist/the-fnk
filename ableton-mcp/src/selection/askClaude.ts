@@ -9,6 +9,7 @@ import { buildInstructionModalHtml, toDataUrl, CANCEL_SENTINEL } from "./modalHt
 import { composePrompt } from "../agent/prompt.js";
 import { writeMcpConfig } from "../agent/mcpConfigFile.js";
 import { runClaude } from "../agent/spawnClaude.js";
+import type { ClaudeResult } from "../agent/resultParser.js";
 
 export interface AskClaudeDeps {
   context: ableton.ExtensionContext<"1.0.0">;
@@ -35,30 +36,36 @@ export async function registerAskClaude(deps: AskClaudeDeps): Promise<void> {
       const claudePath = resolveClaudePath({ env: process.env, home: os.homedir(), exists: fs.existsSync });
       const prompt = composePrompt(selection, instruction);
 
-      const result = await context.ui.withinProgressDialog(
-        "Asking Claude…",
-        { progress: 0 },
-        async (update, signal) => {
-          await update("Claude is working…", 50);
-          const r = await runClaude({
-            claudePath, prompt, configPath, model: DEFAULT_MODEL,
-            allowedTools: ALLOWED_TOOLS, maxTurns: MAX_TURNS, env: process.env, signal,
-          });
-          await update("Done", 100);
-          return r;
-        },
-      );
+      try {
+        let aborted = false;
+        const result = await context.ui.withinProgressDialog(
+          "Asking Claude…",
+          { progress: 0 },
+          async (update, signal) => {
+            await update("Claude is working…", 50);
+            const r = await runClaude({
+              claudePath, prompt, configPath, model: DEFAULT_MODEL,
+              allowedTools: ALLOWED_TOOLS, maxTurns: MAX_TURNS, env: process.env, signal,
+            });
+            if (signal.aborted) aborted = true;
+            await update("Done", 100);
+            return r;
+          },
+        );
 
-      try { fs.unlinkSync(configPath); } catch { /* best effort */ }
+        if (aborted) return; // user cancelled mid-run — no result modal
 
-      const r = result as { isError: boolean; resultText: string; costUsd: number | null; numTurns: number | null };
-      const cost = r.costUsd != null ? ` ($${r.costUsd.toFixed(2)}, ${r.numTurns ?? "?"} turns)` : "";
-      const body = `<!doctype html><meta charset="utf-8"><body style="font:14px -apple-system,sans-serif;background:#1e1e1e;color:#eee;padding:16px">
+        const r = result as ClaudeResult;
+        const cost = r.costUsd != null ? ` ($${r.costUsd.toFixed(2)}, ${r.numTurns ?? "?"} turns)` : "";
+        const body = `<!doctype html><meta charset="utf-8"><body style="font:14px -apple-system,sans-serif;background:#1e1e1e;color:#eee;padding:16px">
         <h3 style="margin:0 0 8px">${r.isError ? "Claude error" : "Claude"}${cost}</h3>
         <pre style="white-space:pre-wrap;word-break:break-word">${r.resultText.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] as string))}</pre>
         <div style="display:flex;justify-content:flex-end"><button style="padding:8px 16px;border:0;border-radius:6px;background:#3b82f6;color:#fff" onclick="(window.webkit&&window.webkit.messageHandlers.live?window.webkit.messageHandlers.live:window.chrome.webview).postMessage({method:'close_and_send',params:['ok']})">Close</button></div>
         </body>`;
-      await context.ui.showModalDialog(toDataUrl(body), 460, 320);
+        await context.ui.showModalDialog(toDataUrl(body), 460, 320);
+      } finally {
+        try { fs.unlinkSync(configPath); } catch { /* best effort */ }
+      }
     } catch (e) {
       log.error(`askClaude failed: ${e instanceof Error ? e.message : String(e)}`);
     }

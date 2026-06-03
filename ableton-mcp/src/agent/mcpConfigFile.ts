@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { randomBytes } from "node:crypto";
 
 export interface McpConfigOptions {
   dir: string;
@@ -20,7 +21,7 @@ export function writeMcpConfig(opts: McpConfigOptions): string {
       },
     },
   };
-  const file = path.join(opts.dir, "ableton-mcp-claude-config.json");
+  const file = path.join(opts.dir, `ableton-mcp-claude-config-${randomBytes(6).toString("hex")}.json`);
   fs.writeFileSync(file, JSON.stringify(config), { mode: 0o600 });
   return file;
 }
