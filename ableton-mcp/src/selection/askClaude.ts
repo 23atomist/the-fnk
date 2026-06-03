@@ -11,7 +11,15 @@ import { buildInstructionModalHtml, toDataUrl, CANCEL_SENTINEL } from "./modalHt
 import { composePrompt } from "../agent/prompt.js";
 import { writeMcpConfig } from "../agent/mcpConfigFile.js";
 import { runClaude } from "../agent/spawnClaude.js";
+import { stepMessage } from "../agent/streamEvents.js";
 import type { ClaudeResult } from "../agent/resultParser.js";
+
+/** Format elapsed ms as "12s" or "1m05s" for the progress text. */
+function formatElapsed(ms: number): string {
+  const total = Math.round(ms / 1000);
+  if (total < 60) return `${total}s`;
+  return `${Math.floor(total / 60)}m${String(total % 60).padStart(2, "0")}s`;
+}
 
 export interface AskClaudeDeps {
   context: ableton.ExtensionContext<"1.0.0">;
@@ -67,16 +75,33 @@ export async function registerAskClaude(deps: AskClaudeDeps): Promise<void> {
         let aborted = false;
         const result = await context.ui.withinProgressDialog(
           "Asking Claude…",
-          { progress: 0 },
+          {}, // no progress number → Live's indeterminate "waiting" animation
           async (update, signal) => {
-            await update("Claude is working…", 50);
-            const r = await runClaude({
-              claudePath, prompt, configPath, model: DEFAULT_MODEL,
-              allowedTools: ALLOWED_TOOLS, maxTurns: MAX_TURNS, env: process.env, signal,
-            });
-            if (signal.aborted) aborted = true;
-            await update("Done", 100);
-            return r;
+            const startedAt = Date.now();
+            let lastStep = "Starting…";
+            let rendering = false;
+            // Omit the progress arg so the dialog stays in its indeterminate/animated state;
+            // the text carries the live step plus elapsed time so long runs visibly tick.
+            const render = async (): Promise<void> => {
+              if (rendering) return;
+              rendering = true;
+              try { await update(`${lastStep}  (${formatElapsed(Date.now() - startedAt)})`); }
+              catch { /* dialog closed/cancelled */ }
+              finally { rendering = false; }
+            };
+            void render();
+            const heartbeat = setInterval(() => void render(), 1000);
+            try {
+              const r = await runClaude({
+                claudePath, prompt, configPath, model: DEFAULT_MODEL,
+                allowedTools: ALLOWED_TOOLS, maxTurns: MAX_TURNS, env: process.env, signal,
+                onStep: (step) => { lastStep = stepMessage(step); void render(); },
+              });
+              if (signal.aborted) aborted = true;
+              return r;
+            } finally {
+              clearInterval(heartbeat);
+            }
           },
         );
 

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { buildClaudeArgs } from "../src/agent/spawnClaude.js";
 
 describe("buildClaudeArgs", () => {
-  it("assembles headless flags with config, allowlist, model, max-turns and json output", () => {
+  it("assembles headless flags with config, allowlist, model, max-turns and streaming output", () => {
     const args = buildClaudeArgs({
       prompt: "do the thing",
       configPath: "/tmp/c.json",
@@ -17,7 +17,8 @@ describe("buildClaudeArgs", () => {
       "--allowedTools", "mcp__ableton__*",
       "--model", "claude-sonnet-4-6",
       "--max-turns", "12",
-      "--output-format", "json",
+      "--output-format", "stream-json",
+      "--verbose",
     ]);
   });
   it("never includes a bypass-permissions flag", () => {
