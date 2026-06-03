@@ -2,10 +2,10 @@ import { describe, it, expect, afterEach } from "vitest";
 import type { Server } from "node:http";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import * as ableton from "@ableton-extensions/sdk";
 import { startHttpServer } from "../src/server/httpServer.js";
-import type { LiveContext } from "../src/sdk/types.js";
 
-function fakeContext(): LiveContext {
+function fakeContext(): ableton.ExtensionContext<"1.0.0"> {
   return {
     application: {
       song: {
@@ -17,7 +17,7 @@ function fakeContext(): LiveContext {
         scaleName: "Minor",
       },
     },
-  };
+  } as unknown as ableton.ExtensionContext<"1.0.0">;
 }
 
 let server: Server | undefined;

@@ -1,13 +1,13 @@
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import * as ableton from "@ableton-extensions/sdk";
 import { buildMcpServer } from "../mcp/server.js";
 import { verifyAuthHeader } from "./auth.js";
 import { MCP_PATH } from "../core/config.js";
 import { log } from "../core/logger.js";
-import type { LiveContext } from "../sdk/types.js";
 
 export interface StartHttpOptions {
-  context: LiveContext;
+  context: ableton.ExtensionContext<"1.0.0">;
   token: string;
   host: string;
   port: number;

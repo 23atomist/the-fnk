@@ -8,7 +8,6 @@ import { startHttpServer } from "./server/httpServer.js";
 import { loadOrCreateToken } from "./server/auth.js";
 import { HOST, PORT, MCP_PATH } from "./core/config.js";
 import { log } from "./core/logger.js";
-import type { LiveContext } from "./sdk/types.js";
 import { registerAskClaude } from "./selection/askClaude.js";
 
 export function activate(activation: ableton.ActivationContext): void {
@@ -31,10 +30,7 @@ export function activate(activation: ableton.ActivationContext): void {
     return;
   }
 
-  // The SDK ExtensionContext structurally satisfies LiveContext for the fields we use.
-  const liveContext = context as unknown as LiveContext;
-
-  startHttpServer({ context: liveContext, token, host: HOST, port: PORT })
+  startHttpServer({ context, token, host: HOST, port: PORT })
     .then(({ port }) => {
       log.info(`MCP server listening on http://${HOST}:${port}${MCP_PATH}`);
       log.info(

@@ -5,6 +5,8 @@ import { log } from "../core/logger.js";
 import { HOST, PORT, MCP_PATH } from "../core/config.js";
 import { DEFAULT_MODEL, ALLOWED_TOOLS, MAX_TURNS, resolveClaudePath } from "../core/agentConfig.js";
 import { captureClipSlot, type ClipSlotLike } from "./capture.js";
+import { setActiveSelection } from "./activeSelection.js";
+import { resolveSlotPosition } from "./resolveSlot.js";
 import { buildInstructionModalHtml, toDataUrl, CANCEL_SENTINEL } from "./modalHtml.js";
 import { composePrompt } from "../agent/prompt.js";
 import { writeMcpConfig } from "../agent/mcpConfigFile.js";
@@ -25,6 +27,31 @@ export async function registerAskClaude(deps: AskClaudeDeps): Promise<void> {
     try {
       const slot = context.getObjectFromHandle(arg as ableton.Handle, ableton.ClipSlot);
       const selection = captureClipSlot(slot as unknown as ClipSlotLike);
+
+      // Resolve where this slot is and stash it for the get_selection / create_midi_clips tools.
+      try {
+        const song = context.application.song;
+        const pos = resolveSlotPosition(
+          song as unknown as { tracks: ReadonlyArray<{ clipSlots: ReadonlyArray<object> }> },
+          slot as unknown as object,
+        );
+        if (pos) {
+          const track = song.tracks[pos.trackIndex];
+          setActiveSelection({
+            trackIndex: pos.trackIndex,
+            trackName: track.name,
+            isMidiTrack: track instanceof ableton.MidiTrack,
+            sceneIndex: pos.sceneIndex,
+            hasClip: selection.hasClip,
+            totalTracks: song.tracks.length,
+            totalScenes: track.clipSlots.length,
+          });
+        } else {
+          setActiveSelection(null);
+        }
+      } catch {
+        setActiveSelection(null);
+      }
 
       const instruction = await context.ui.showModalDialog(toDataUrl(buildInstructionModalHtml()), 460, 280);
       if (!instruction || instruction === CANCEL_SENTINEL || instruction.trim() === "") {

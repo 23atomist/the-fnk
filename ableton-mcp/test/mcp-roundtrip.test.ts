@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import * as ableton from "@ableton-extensions/sdk";
 import { buildMcpServer } from "../src/mcp/server.js";
-import type { LiveContext } from "../src/sdk/types.js";
 
-function fakeContext(): LiveContext {
+function fakeContext(): ableton.ExtensionContext<"1.0.0"> {
   return {
     application: {
       song: {
@@ -16,7 +16,7 @@ function fakeContext(): LiveContext {
         scaleName: "Dorian",
       },
     },
-  };
+  } as unknown as ableton.ExtensionContext<"1.0.0">;
 }
 
 describe("MCP round-trip", () => {
