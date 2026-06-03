@@ -7,6 +7,16 @@
 
 ---
 
+## AC-M0 — VERIFIED LIVE (2026-06-02)
+
+Implemented and verified end-to-end in Ableton Live 12 Beta: right-click a Session clip
+slot → "Ask Claude…" → modal text box returns the typed instruction → the host spawns
+`claude` headless (Sonnet, `--allowedTools mcp__ableton__*`, `--max-turns 12`, no bypass)
+against the extension's own MCP server → Claude calls `get_song_overview` and answers.
+Confirmed: `is_error:false`, real result ("tempo 97, 12 tracks, G Minor"), cost shown
+($0.13, 3 turns, ~17s). Modal text-return ✓, in-host spawn ✓, tool use ✓, cost ✓, no host
+crash. 8 commits on `main` after merge. Next: AC-M1 (generative placement, below).
+
 ## 1. Vision
 
 A producer-initiated, in-Ableton AI assistant that **enhances production, not replaces
