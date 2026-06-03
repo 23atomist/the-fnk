@@ -142,3 +142,60 @@ but the cost is real and per-invocation, so the feature surfaces and bounds it:
 
 None beyond M0 + Node `child_process` (stdlib). Claude CLI is an external runtime
 dependency the producer already has installed and authenticated.
+
+---
+
+## 9. AC-M1 — Generative MIDI placement (drums + melodies) with reverse-questions
+
+**Goal:** Right-click a cell → "build me some dope 2-step beats" → Claude (optionally asking
+"how many?") generates the patterns and places them as MIDI clips in one undo step. The
+model returns structured notes via a tool's schema; the extension does the placement —
+efficient, no token-wasteful read-back.
+
+**Decisions (2026-06-02):** placement direction = **Claude infers from wording** (column
+vs row); content = **general MIDI** (one content-agnostic tool handles drums and melodies);
+reverse-questions = **only when genuinely ambiguous** (Claude defaults sensibly otherwise).
+
+### New MCP tools (added to the existing in-extension server)
+- **`get_selection`** → `{ trackIndex, trackName, isMidiTrack, sceneIndex, hasClip,
+  totalTracks, totalScenes }`. Reads the **active selection** stashed by the context-menu
+  handler. Lets Claude know where it's placing and target consecutive cells.
+- **`ask_user(question: string): string`** → opens an Ableton modal and returns the typed
+  answer **mid-run**. Powers reverse-questions within a single headless spawn. *(Host
+  unknown: behavior while a run/progress dialog is active — de-risked first.)*
+- **`create_midi_clips(clips[])`** where each clip =
+  `{ trackIndex?: number (default selected), sceneIndex: number, lengthBeats: number,
+  name?: string, notes: Array<{ pitch:0..127, startTime>=0, duration>0, velocity?:0..127 }> }`.
+  Validated with zod (out-of-range clamped/rejected). Applied inside one
+  `context.withinTransaction(() => Promise.all(...))` → single undo. Per clip: resolve
+  `song.tracks[i].clipSlots[scene]`; require a MIDI track and an empty slot (otherwise skip
+  and report). Returns `{ created, skipped: [{sceneIndex, reason}] }`.
+
+### Components (new files)
+```
+src/selection/activeSelection.ts   // in-memory active selection {trackIndex,sceneIndex,...}; set by askClaude, read by get_selection
+src/selection/resolveSlot.ts       // find {trackIndex,sceneIndex} of a ClipSlot by identity over song.tracks[].clipSlots[]
+src/mcp/tools/selectionTool.ts     // get_selection registration
+src/mcp/tools/askUser.ts           // ask_user registration (shows modal, returns text)
+src/mcp/tools/generate.ts          // create_midi_clips registration + zod schema
+src/agent/notes.ts                 // pure: validate/clamp NoteDescription[]; build clip plan
+```
+`src/mcp/server.ts` registers the new tools (passing `context` + the active-selection store).
+`src/selection/askClaude.ts` resolves + stashes the active selection before spawning and uses
+an updated prompt (`src/agent/prompt.ts`) that describes the generative tools and the
+"infer placement / ask only if ambiguous / be terse" guidance.
+
+### Build order
+- **AC-M1.0 — de-risk (live):** prove `ask_user` (modal mid-run) and a single
+  `create_midi_clips` call placing notes into the selected cell, end-to-end in Live. Resolve
+  the progress-dialog/modal interaction. This gates the design.
+- **AC-M1.1:** `get_selection` + slot resolution + active-selection store (unit-tested).
+- **AC-M1.2:** `create_midi_clips` full batch + transaction + validation + skip/occupied
+  reporting (notes.ts unit-tested; placement live).
+- **AC-M1.3:** prompt guidance + multi-cell placement (column/row inference); end-to-end
+  "build me 4 two-step beats" live gate.
+
+### Security / cost (unchanged from §5–6.5)
+Tools remain allowlisted under `mcp__ableton__*` (no bypass). `create_midi_clips` mutates but
+is one-undo reversible; the producer's instruction is the authorization. Sonnet default,
+`--max-turns` cap, cost shown.
