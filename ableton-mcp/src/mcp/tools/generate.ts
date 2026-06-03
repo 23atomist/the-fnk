@@ -45,68 +45,38 @@ export function registerGenerateTool(
     withSafeHandler("create_midi_clips", async (args: ClipsArgs) => {
       const sel = getActiveSelection();
       const song = context.application.song;
-      const skipped: Array<{ sceneIndex: number; reason: string }> = [];
-      const plans: Array<{
-        slot: ableton.ClipSlot<"1.0.0">;
-        lengthBeats: number;
-        notes: ableton.NoteDescription[];
-        sceneIndex: number;
-      }> = [];
+      const skipped: Array<{ trackIndex: number | null; sceneIndex: number; reason: string }> = [];
+      const plans: Array<{ slot: ableton.ClipSlot<"1.0.0">; lengthBeats: number; notes: ableton.NoteDescription[]; name?: string; trackIndex: number; sceneIndex: number }> = [];
+      const seen = new Set<string>();
 
       for (const c of args.clips) {
-        const clipInput = c as ClipInput;
-        const trackIndex = clipInput.trackIndex ?? sel?.trackIndex;
-        if (trackIndex == null) {
-          skipped.push({ sceneIndex: clipInput.sceneIndex, reason: "no track (no selection)" });
-          continue;
-        }
+        const trackIndex = c.trackIndex ?? sel?.trackIndex ?? null;
+        if (trackIndex == null) { skipped.push({ trackIndex: null, sceneIndex: c.sceneIndex, reason: "no track (no selection)" }); continue; }
+        const key = `${trackIndex}:${c.sceneIndex}`;
+        if (seen.has(key)) { skipped.push({ trackIndex, sceneIndex: c.sceneIndex, reason: "duplicate in batch" }); continue; }
+        seen.add(key);
         const track = song.tracks[trackIndex];
-        if (!track) {
-          skipped.push({ sceneIndex: clipInput.sceneIndex, reason: `track ${trackIndex} out of range` });
-          continue;
-        }
-        if (!(track instanceof ableton.MidiTrack)) {
-          skipped.push({ sceneIndex: clipInput.sceneIndex, reason: "not a MIDI track" });
-          continue;
-        }
-        const slot = track.clipSlots[clipInput.sceneIndex];
-        if (!slot) {
-          skipped.push({ sceneIndex: clipInput.sceneIndex, reason: `scene ${clipInput.sceneIndex} out of range` });
-          continue;
-        }
-        if (slot.clip != null) {
-          skipped.push({ sceneIndex: clipInput.sceneIndex, reason: "slot occupied" });
-          continue;
-        }
-        plans.push({
-          slot,
-          lengthBeats: clipInput.lengthBeats,
-          notes: validateNotes(clipInput.notes) as ableton.NoteDescription[],
-          sceneIndex: clipInput.sceneIndex,
-        });
+        if (!track) { skipped.push({ trackIndex, sceneIndex: c.sceneIndex, reason: `track ${trackIndex} out of range` }); continue; }
+        if (!(track instanceof ableton.MidiTrack)) { skipped.push({ trackIndex, sceneIndex: c.sceneIndex, reason: "not a MIDI track" }); continue; }
+        const slot = track.clipSlots[c.sceneIndex];
+        if (!slot) { skipped.push({ trackIndex, sceneIndex: c.sceneIndex, reason: `scene ${c.sceneIndex} out of range` }); continue; }
+        if (slot.clip != null) { skipped.push({ trackIndex, sceneIndex: c.sceneIndex, reason: "slot occupied" }); continue; }
+        plans.push({ slot, lengthBeats: c.lengthBeats, notes: validateNotes(c.notes) as ableton.NoteDescription[], name: c.name, trackIndex, sceneIndex: c.sceneIndex });
       }
 
-      const created: number[] = [];
       if (plans.length > 0) {
         await context.withinTransaction(() =>
-          Promise.all(
-            plans.map(async (p) => {
-              const clip = await p.slot.createMidiClip(p.lengthBeats);
-              clip.notes = p.notes;
-              created.push(p.sceneIndex);
-            }),
-          ),
+          Promise.all(plans.map(async (p) => {
+            const clip = await p.slot.createMidiClip(p.lengthBeats);
+            clip.notes = p.notes;
+            if (p.name != null) clip.name = p.name;
+          })),
         );
       }
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({ created: created.length, createdScenes: created, skipped }),
-          },
-        ],
-      };
+      // Reached only on full transaction success (withSafeHandler turns any throw into isError).
+      const createdScenes = plans.map((p) => p.sceneIndex);
+      return { content: [{ type: "text", text: JSON.stringify({ created: plans.length, createdScenes, skipped }) }] };
     }),
   );
 }

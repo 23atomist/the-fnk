@@ -44,7 +44,7 @@ export async function registerAskClaude(deps: AskClaudeDeps): Promise<void> {
             sceneIndex: pos.sceneIndex,
             hasClip: selection.hasClip,
             totalTracks: song.tracks.length,
-            totalScenes: track.clipSlots.length,
+            totalScenes: song.scenes.length,
           });
         } else {
           setActiveSelection(null);
