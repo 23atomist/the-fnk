@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { resolveReadTarget, serializeClipSlot, type MidiClipLike } from "../src/mcp/tools/clipNotes.js";
+import { z } from "zod";
+import { resolveReadTarget, serializeClipSlot, ClipNotesInputShape, type MidiClipLike } from "../src/mcp/tools/clipNotes.js";
 
 describe("resolveReadTarget", () => {
   it("defaults to the active selection's cell when no indices given", () => {
@@ -61,5 +62,18 @@ describe("serializeClipSlot", () => {
       expect(out.notes).toHaveLength(2);
       expect("velocity" in out.notes[1]).toBe(false);
     }
+  });
+});
+
+describe("get_clip_notes input schema", () => {
+  const schema = z.object(ClipNotesInputShape);
+  it("accepts empty input (defaults to selection)", () => {
+    expect(schema.parse({})).toEqual({});
+  });
+  it("accepts explicit trackIndex/sceneIndex", () => {
+    expect(schema.parse({ trackIndex: 2, sceneIndex: 5 })).toEqual({ trackIndex: 2, sceneIndex: 5 });
+  });
+  it("rejects a non-numeric trackIndex", () => {
+    expect(() => schema.parse({ trackIndex: "x" })).toThrow();
   });
 });
