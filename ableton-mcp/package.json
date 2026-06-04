@@ -10,7 +10,7 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
-    "@ableton-extensions/cli": "file:../extensions/ableton-extensions-cli-1.0.0-beta.0.tgz",
+    "@ableton-extensions/cli": "file:vendor/ableton-extensions-cli-1.0.0-beta.0.tgz",
     "@types/node": "^25.2.3",
     "esbuild": "0.28.0",
     "tsx": "^4.19.0",
@@ -18,7 +18,7 @@
     "vitest": "^2.1.0"
   },
   "dependencies": {
-    "@ableton-extensions/sdk": "file:../extensions/ableton-extensions-sdk-1.0.0-beta.0.tgz",
+    "@ableton-extensions/sdk": "file:vendor/ableton-extensions-sdk-1.0.0-beta.0.tgz",
     "@modelcontextprotocol/sdk": "^1.13.0",
     "undici": "^7.27.0",
     "zod": "^3.23.8"
