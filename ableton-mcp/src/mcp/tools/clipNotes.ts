@@ -40,6 +40,9 @@ export function serializeClipSlot(view: ClipSlotView): ClipNotesResult {
   if (!view.hasClip) return { hasClip: false };
   if (!view.isMidi) return { hasClip: true, isMidi: false };
   const { clip } = view;
+  // Notes are stored in absolute clip time; normalize to the loop region so startTime is
+  // relative to the loop start (0 = loop start), matching the tool's "0 = clip start" contract
+  // and the lengthBeats we report. Most Session clips have loopStart 0, but not all.
   return {
     hasClip: true,
     isMidi: true,
@@ -48,7 +51,7 @@ export function serializeClipSlot(view: ClipSlotView): ClipNotesResult {
     looping: clip.looping,
     notes: clip.notes.map((n) => ({
       pitch: n.pitch,
-      startTime: n.startTime,
+      startTime: n.startTime - clip.loopStart,
       duration: n.duration,
       ...(n.velocity != null ? { velocity: n.velocity } : {}),
     })),

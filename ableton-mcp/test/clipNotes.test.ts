@@ -63,6 +63,22 @@ describe("serializeClipSlot", () => {
       expect("velocity" in out.notes[1]).toBe(false);
     }
   });
+  it("normalizes note startTimes to the loop start when loopStart is non-zero", () => {
+    const offset: MidiClipLike = {
+      name: "Offset", loopStart: 4, loopEnd: 8, looping: true,
+      notes: [
+        { pitch: 36, startTime: 4, duration: 1, velocity: 100 }, // at loop start
+        { pitch: 38, startTime: 6, duration: 0.5, velocity: 90 }, // 2 beats in
+      ],
+    };
+    expect(serializeClipSlot({ hasClip: true, isMidi: true, clip: offset })).toEqual({
+      hasClip: true, isMidi: true, name: "Offset", lengthBeats: 4, looping: true,
+      notes: [
+        { pitch: 36, startTime: 0, duration: 1, velocity: 100 },
+        { pitch: 38, startTime: 2, duration: 0.5, velocity: 90 },
+      ],
+    });
+  });
 });
 
 describe("get_clip_notes input schema", () => {
