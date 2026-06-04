@@ -5,6 +5,7 @@ import { getActiveSelection } from "../../selection/activeSelection.js";
 import { validateNotes } from "../../agent/notes.js";
 import { resolvePlacement } from "./resolvePlacement.js";
 import { withSafeHandler } from "../../core/errors.js";
+import { log } from "../../core/logger.js";
 
 const NoteShape = z.object({
   pitch: z.number(),
@@ -50,6 +51,7 @@ export function registerGenerateTool(
     },
     withSafeHandler("create_midi_clips", async (args: ClipsArgs) => {
       const sel = getActiveSelection();
+      log.info(`create_midi_clips: called with ${args.clips.length} clip(s)`);
       const song = context.application.song;
       const skipped: Array<{ trackIndex: number | null; sceneIndex: number; reason: string }> = [];
       const plans: Array<{ slot: ableton.ClipSlot<"1.0.0">; lengthBeats: number; notes: ableton.NoteDescription[]; name?: string; trackIndex: number; sceneIndex: number }> = [];
@@ -83,6 +85,7 @@ export function registerGenerateTool(
 
       // Reached only on full transaction success (withSafeHandler turns any throw into isError).
       const createdScenes = plans.map((p) => p.sceneIndex);
+      log.info(`create_midi_clips: created ${plans.length} [${createdScenes.join(",")}], skipped ${skipped.length}${skipped.length ? ` — ${JSON.stringify(skipped)}` : ""}`);
       return { content: [{ type: "text", text: JSON.stringify({ created: plans.length, createdScenes, skipped }) }] };
     }),
   );

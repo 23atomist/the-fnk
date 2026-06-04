@@ -16,3 +16,16 @@ describe("derive-from-source prompt", () => {
     expect(MUSICAL_GUIDANCE).toContain("DERIVING A PART");
   });
 });
+
+describe("tool-use mandate (anti-text-payload hardening)", () => {
+  it("forbids printing clip JSON and mandates calling create_midi_clips", () => {
+    const p = composePrompt({ kind: "clipSlot", hasClip: false }, "make 6 drum variations");
+    expect(p).toContain("create_midi_clips");
+    expect(p).toMatch(/NEVER write clip or note JSON/);
+    expect(p.toLowerCase()).toContain("do not print the clip json");
+  });
+  it("caps the batch at 4 clips per call", () => {
+    const p = composePrompt({ kind: "clipSlot", hasClip: false }, "make 6 drum variations");
+    expect(p).toMatch(/at most 4 clips/i);
+  });
+});
