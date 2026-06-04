@@ -39,5 +39,13 @@ export const MELODY_GUIDANCE = [
   "Register (MIDI): sub bass 24-43, bass 28-48 (most lines 36-48), pad/chords 48-72, lead/melody 60-84. Keep at least an octave between the bass and the chords' lowest note to avoid mud.",
 ].join("\n");
 
+/** Deriving a new part from an existing clip (e.g. a bass from a melody). */
+export const DERIVATION_GUIDANCE = [
+  "DERIVING A PART FROM SOURCE MATERIAL — When the producer references existing content (\"from this melody\", \"based on this\", \"make a bass for this\"), first read the source clip with get_clip_notes, then build the new part to fit it.",
+  "Match the source's clip length (lengthBeats) and its key/scale (from get_song_overview). Keep the new part in the same harmonic world — reuse the source's chord tones; don't introduce a clashing key.",
+  "Deriving a BASS from a melody/chords: take the strong-beat / chord-root pitches of the source and play them an octave or two down (target register 28-48); simplify the rhythm toward downbeats and sustained roots, lock to the kick if drums exist, and leave space — the bass should be simpler than the source, not a copy.",
+  "Deriving a COUNTER-MELODY or HARMONY: move mostly in contrary motion to the source, land chord tones (3rds/6ths above) on strong beats, and rest where the source is busy so the two parts interlock rather than collide.",
+].join("\n");
+
 /** The full musical brief appended to the generation prompt. */
-export const MUSICAL_GUIDANCE = [DRUM_GUIDANCE, "", MELODY_GUIDANCE].join("\n");
+export const MUSICAL_GUIDANCE = [DRUM_GUIDANCE, "", MELODY_GUIDANCE, "", DERIVATION_GUIDANCE].join("\n");
