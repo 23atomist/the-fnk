@@ -11,6 +11,7 @@ export function composePrompt(selection: SelectionContext, instruction: string):
     `"${trimmed}"`,
     "",
     "CRITICAL: You place MIDI ONLY by CALLING the create_midi_clips tool — that tool call is the only thing that creates notes in Live. NEVER write clip or note JSON in your text reply: printing the payload creates NOTHING, wastes the run, and is the #1 failure. Keep each create_midi_clips call to AT MOST 4 clips; if more are requested, place the 4 best and tell the producer to ask again for the rest.",
+    "SIZE & SPEED — keep clips SMALL and loopable. Default length is 1 bar (4 beats); 2 bars (8 beats) for more groove; 4 bars (16 beats) MAX. Live loops the clip, so a tight 1–2 bar groove that repeats beats a long through-composed clip. If the producer asks for many bars (e.g. \"16 bars\"), STILL make a 1–2 bar loop (they can duplicate/extend it) — do NOT hand-write every bar uniquely. HARD CAP: at most ~64 notes per clip. Hundreds of notes make the run take many minutes and time out — that is the single biggest failure mode, so stay well under the cap.",
     "",
     "Workflow:",
     "1. Call get_selection to learn the selected track/scene and whether it's a MIDI track. For pitched material (melody/bass/chords) also call get_song_overview to get the key/scale and tempo.",

@@ -28,4 +28,10 @@ describe("tool-use mandate (anti-text-payload hardening)", () => {
     const p = composePrompt({ kind: "clipSlot", hasClip: false }, "make 6 drum variations");
     expect(p).toMatch(/at most 4 clips/i);
   });
+  it("enforces small loopable clips with a note cap (anti-timeout)", () => {
+    const p = composePrompt({ kind: "clipSlot", hasClip: false }, "make a 16 bar drum pattern");
+    expect(p).toMatch(/HARD CAP/);
+    expect(p).toMatch(/64 notes/);
+    expect(p.toLowerCase()).toMatch(/loop/);
+  });
 });
