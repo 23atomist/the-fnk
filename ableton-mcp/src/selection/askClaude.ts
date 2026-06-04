@@ -9,7 +9,7 @@ import { setActiveSelection } from "./activeSelection.js";
 import { resolveSlotPosition } from "./resolveSlot.js";
 import { buildInstructionModalHtml, toDataUrl, CANCEL_SENTINEL } from "./modalHtml.js";
 import { composePrompt } from "../agent/prompt.js";
-import { writeMcpConfig } from "../agent/mcpConfigFile.js";
+import { registerMcpServer, unregisterMcpServer } from "../agent/mcpRegistration.js";
 import { runClaude } from "../agent/spawnClaude.js";
 import { stepMessage } from "../agent/streamEvents.js";
 import type { ClaudeResult } from "../agent/resultParser.js";
@@ -67,10 +67,16 @@ export async function registerAskClaude(deps: AskClaudeDeps): Promise<void> {
       }
 
       const tmpDir = context.environment.tempDirectory ?? os.tmpdir();
-      const configPath = writeMcpConfig({ dir: tmpDir, host: HOST, port: PORT, token, path: MCP_PATH });
       const claudePath = resolveClaudePath({ env: process.env, home: os.homedir(), exists: fs.existsSync });
       const prompt = composePrompt(selection, instruction);
+      const serverUrl = `http://${HOST}:${PORT}${MCP_PATH}`;
+      const mcpName = "ableton"; // matches ALLOWED_TOOLS "mcp__ableton__*"
+      const cliRun = { claudePath, cwd: tmpDir, env: process.env };
 
+      // Register our MCP server in Claude's local config at tmpDir so the spawned `claude -p`
+      // (run from tmpDir) actually exposes the tools to the model. Passing the server via
+      // `--mcp-config` connects it but does NOT surface its tools on current Claude Code.
+      await registerMcpServer({ name: mcpName, url: serverUrl, token }, cliRun);
       try {
         let aborted = false;
         const result = await context.ui.withinProgressDialog(
@@ -93,7 +99,7 @@ export async function registerAskClaude(deps: AskClaudeDeps): Promise<void> {
             const heartbeat = setInterval(() => void render(), 1000);
             try {
               const r = await runClaude({
-                claudePath, prompt, configPath, model: DEFAULT_MODEL,
+                claudePath, prompt, cwd: tmpDir, model: DEFAULT_MODEL,
                 allowedTools: ALLOWED_TOOLS, maxTurns: MAX_TURNS, env: process.env, signal,
                 onStep: (step) => { lastStep = stepMessage(step); void render(); },
               });
@@ -116,7 +122,7 @@ export async function registerAskClaude(deps: AskClaudeDeps): Promise<void> {
         </body>`;
         await context.ui.showModalDialog(toDataUrl(body), 460, 320);
       } finally {
-        try { fs.unlinkSync(configPath); } catch { /* best effort */ }
+        await unregisterMcpServer(mcpName, cliRun).catch(() => { /* best effort */ });
       }
     } catch (e) {
       log.error(`askClaude failed: ${e instanceof Error ? e.message : String(e)}`);

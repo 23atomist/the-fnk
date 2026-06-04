@@ -1,5 +1,7 @@
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
+import { randomUUID } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import * as ableton from "@ableton-extensions/sdk";
 import { buildMcpServer } from "../mcp/server.js";
 import { verifyAuthHeader } from "./auth.js";
@@ -40,8 +42,17 @@ function sendJson(res: ServerResponse, code: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
-/** Start the MCP HTTP server. Resolves once listening; `port` is the actual bound port. */
+/**
+ * Start the MCP HTTP server. Resolves once listening; `port` is the actual bound port.
+ *
+ * Stateful Streamable HTTP: a transport (and its McpServer) is created on the client's
+ * `initialize` request, keyed by the generated `Mcp-Session-Id`, and reused for every
+ * subsequent POST/GET/DELETE on that session. The Claude Code MCP client requires this —
+ * a stateless (session-less) server leaves tool calls unresolved (error_max_turns).
+ */
 export function startHttpServer(opts: StartHttpOptions): Promise<StartedHttp> {
+  const transports = new Map<string, StreamableHTTPServerTransport>();
+
   const server = createServer((req, res) => {
     // All request handling is guarded — an error here must never crash the host.
     void (async () => {
@@ -57,15 +68,32 @@ export function startHttpServer(opts: StartHttpOptions): Promise<StartedHttp> {
         }
 
         const body = req.method === "POST" ? await readBody(req) : undefined;
+        const sessionId = req.headers["mcp-session-id"];
+        const sid = typeof sessionId === "string" ? sessionId : undefined;
 
-        // Stateless: a fresh transport + server per request.
-        const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-        const mcp = buildMcpServer(opts.context);
-        // mcp.close() also closes its connected transport; closing here once is enough.
-        res.on("close", () => {
-          void mcp.close();
-        });
-        await mcp.connect(transport);
+        let transport = sid ? transports.get(sid) : undefined;
+
+        if (!transport) {
+          if (req.method === "POST" && isInitializeRequest(body)) {
+            // New session: create a stateful transport + a fresh McpServer bound to it.
+            transport = new StreamableHTTPServerTransport({
+              sessionIdGenerator: () => randomUUID(),
+              onsessioninitialized: (newId) => {
+                transports.set(newId, transport as StreamableHTTPServerTransport);
+              },
+            });
+            transport.onclose = () => {
+              if (transport?.sessionId) transports.delete(transport.sessionId);
+            };
+            const mcp = buildMcpServer(opts.context);
+            await mcp.connect(transport);
+          } else {
+            // Non-initialize request with no (valid) session — nothing to handle.
+            sendJson(res, 400, { error: "missing or invalid mcp-session-id" });
+            return;
+          }
+        }
+
         await transport.handleRequest(req, res, body);
       } catch (err) {
         log.error(`http handler error: ${err instanceof Error ? err.message : String(err)}`);

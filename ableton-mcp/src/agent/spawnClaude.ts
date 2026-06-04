@@ -4,7 +4,6 @@ import { parseStreamLine, type StreamStep } from "./streamEvents.js";
 
 export interface ClaudeArgsOptions {
   prompt: string;
-  configPath: string;
   model: string;
   allowedTools: string;
   maxTurns: number;
@@ -13,12 +12,15 @@ export interface ClaudeArgsOptions {
 /**
  * Build the headless claude argv. Pure + unit-tested. Never adds a bypass flag.
  * Uses stream-json so progress can be reported live (stream-json requires --verbose in -p mode).
+ *
+ * The MCP server is NOT passed via `--mcp-config` — on current Claude Code that connects the
+ * server but never exposes its tools to the model (the model reports them "not in the deferred
+ * tools registry"). It is instead registered with `claude mcp add` (see mcpRegistration.ts) at
+ * the same `cwd` this run executes from, which does expose the tools.
  */
 export function buildClaudeArgs(opts: ClaudeArgsOptions): string[] {
   return [
     "-p", opts.prompt,
-    "--mcp-config", opts.configPath,
-    "--strict-mcp-config",
     "--allowedTools", opts.allowedTools,
     "--model", opts.model,
     "--max-turns", String(opts.maxTurns),
@@ -30,6 +32,8 @@ export function buildClaudeArgs(opts: ClaudeArgsOptions): string[] {
 export interface RunClaudeOptions extends ClaudeArgsOptions {
   claudePath: string;
   env: NodeJS.ProcessEnv;
+  /** Run from this dir so the local-scope `claude mcp add` registration is picked up. */
+  cwd: string;
   signal?: AbortSignal;
   /** Called for each meaningful stream event so the UI can show live progress. */
   onStep?: (step: StreamStep) => void;
@@ -42,6 +46,7 @@ export interface RunClaudeOptions extends ClaudeArgsOptions {
 export function runClaude(opts: RunClaudeOptions): Promise<ClaudeResult> {
   return new Promise((resolve) => {
     const child = spawn(opts.claudePath, buildClaudeArgs(opts), {
+      cwd: opts.cwd,
       env: opts.env,
       stdio: ["ignore", "pipe", "pipe"],
       signal: opts.signal,
