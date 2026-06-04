@@ -1,0 +1,104 @@
+name: Release .ablx
+
+# Push a tag like v1.2.3 to build, test, package, and publish a GitHub Release
+# with the native Ableton extension archive (ableton-mcp-<version>.ablx) attached.
+# The git tag is the source of truth for the version.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Test version (no Release is created; the .ablx is uploaded as a build artifact)"
+        required: false
+        default: "0.0.0-test"
+
+permissions:
+  contents: write # required to create the GitHub Release and upload the asset
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: [self-hosted, Linux, X64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Derive version (tag on push, input on manual dispatch)
+        id: ver
+        env:
+          VERSION_INPUT: ${{ github.event.inputs.version }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$VERSION_INPUT"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building version $VERSION (event: $GITHUB_EVENT_NAME)"
+
+      - name: Install dependencies (full, incl. dev)
+        run: npm ci
+
+      - name: Inject version into manifest.json + package.json
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          node -e "const fs=require('fs');for(const f of ['manifest.json','package.json']){const o=JSON.parse(fs.readFileSync(f,'utf8'));o.version=process.env.VERSION;fs.writeFileSync(f,JSON.stringify(o,null,2)+'\n');}"
+          echo 'manifest.json:'; cat manifest.json
+
+      - name: Build (tsc + esbuild)
+        run: npm run build
+
+      - name: Test (green-gate the release)
+        run: npx vitest run
+
+      # The bundle leaves undici + ajv as runtime require()s, so the .ablx must carry
+      # a production node_modules. We stage a prod-only install separately so the root
+      # node_modules keeps extensions-cli available to do the packaging.
+      - name: Stage production node_modules + package .ablx
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          ARTIFACT="ableton-mcp-${VERSION}.ablx"
+          rm -rf .pkg "$ARTIFACT"
+          mkdir -p .pkg
+          cp manifest.json package.json package-lock.json .pkg/
+          cp -r dist vendor .pkg/
+          ( cd .pkg && npm ci --omit=dev --ignore-scripts )
+          ( cd .pkg && "$GITHUB_WORKSPACE/node_modules/.bin/extensions-cli" package . -i node_modules -o "$GITHUB_WORKSPACE/$ARTIFACT" )
+          echo "ARTIFACT=$ARTIFACT" >> "$GITHUB_ENV"
+
+      - name: Verify the archive carries its runtime deps
+        run: |
+          set -euo pipefail
+          echo "Artifact: $ARTIFACT ($(du -h "$ARTIFACT" | cut -f1))"
+          for need in manifest.json dist/extension.js node_modules/undici/package.json node_modules/ajv/package.json node_modules/ajv-formats/package.json; do
+            unzip -l "$ARTIFACT" | grep -q " $need\$" || { echo "MISSING from archive: $need"; exit 1; }
+            echo "  ok: $need"
+          done
+
+      - name: Upload .ablx as a build artifact (always, for inspection)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: ${{ env.ARTIFACT }}
+          if-no-files-found: error
+
+      - name: Publish GitHub Release with the .ablx (tag pushes only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ARTIFACT }}
+          fail_on_unmatched_files: true
+          generate_release_notes: true
