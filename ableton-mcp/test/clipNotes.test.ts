@@ -12,6 +12,11 @@ describe("resolveReadTarget", () => {
       ok: true, trackIndex: 5, sceneIndex: 2,
     });
   });
+  it("overrides only the sceneIndex when just sceneIndex is given", () => {
+    expect(resolveReadTarget({ sceneIndex: 5 }, { trackIndex: 3, sceneIndex: 2 })).toEqual({
+      ok: true, trackIndex: 3, sceneIndex: 5,
+    });
+  });
   it("fails with no track when there is no selection and no trackIndex", () => {
     expect(resolveReadTarget({ sceneIndex: 1 }, null)).toEqual({
       ok: false, reason: "no track (no selection)",
@@ -53,6 +58,7 @@ describe("serializeClipSlot", () => {
   it("omits velocity when the source note has none", () => {
     const out = serializeClipSlot({ hasClip: true, isMidi: true, clip });
     if (out.hasClip && out.isMidi) {
+      expect(out.notes).toHaveLength(2);
       expect("velocity" in out.notes[1]).toBe(false);
     }
   });

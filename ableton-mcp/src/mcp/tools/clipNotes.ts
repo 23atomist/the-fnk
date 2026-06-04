@@ -110,7 +110,17 @@ export function registerClipNotesTool(
         clip == null
           ? { hasClip: false }
           : clip instanceof ableton.MidiClip
-            ? { hasClip: true, isMidi: true, clip: clip as unknown as MidiClipLike }
+            ? {
+                hasClip: true,
+                isMidi: true,
+                clip: {
+                  name: clip.name,
+                  loopStart: clip.loopStart,
+                  loopEnd: clip.loopEnd,
+                  looping: clip.looping,
+                  notes: clip.notes,
+                },
+              }
             : { hasClip: true, isMidi: false };
       return reply(serializeClipSlot(view));
     }),
